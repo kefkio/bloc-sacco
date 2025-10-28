@@ -1,66 +1,26 @@
-## Foundry
+# Bloc-SACCO 🏦
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+A modular, Ethereum-based SACCO (Savings and Credit Cooperative) smart contract system built with [Foundry](https://book.getfoundry.sh/) and [OpenZeppelin](https://docs.openzeppelin.com/contracts/). Designed for transparency, auditability, and seamless frontend integration.
 
-Foundry consists of:
+---
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## 🧱 Project Structure
+bloc-sacco/ ├── src/                # Core smart contracts (LoanManager, Counter, etc.) ├── script/             # Deployment and interaction scripts ├── test/               # Foundry test suite ├── lib/                # External libraries (forge-std, OpenZeppelin) ├── .github/            # CI workflows ├── .vscode/            # Editor settings ├── foundry.toml        # Foundry config └── README.md
 
-## Documentation
+---
 
-https://book.getfoundry.sh/
+## 🚀 Getting Started
 
-## Usage
+### Prerequisites
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- Node.js (for frontend integration)
+- Git (with submodule support)
 
-### Build
+### Install Dependencies
 
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+```bash
+git clone --recurse-submodules https://github.com/kefkio/bloc-sacco.git
+cd bloc-sacco
+forge install
+forge build
+forge test -vv
