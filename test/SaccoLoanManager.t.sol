@@ -4,7 +4,6 @@ pragma solidity ^0.8.18;
 import {Test} from "forge-std/Test.sol";
 import {SaccoLoanManager} from "../src/SaccoLoanManager.sol";
 
-
 contract SaccoLoanManagerTest is Test {
     SaccoLoanManager manager;
     address admin;
@@ -16,41 +15,41 @@ contract SaccoLoanManagerTest is Test {
     address[] internal ops;
     address[] internal garr;
 
-function setUp() public {
-    admin = address(0x1);
-    operator = address(0x2);
-    borrower = address(0x3);
-    guarantor1 = address(0x4);
-    guarantor2 = address(0x5);
+    
 
-    // Correct dynamic array initialization
-    ops = new address[](1);
-    ops[0] = operator;
+    function setUp() public {
+        admin = address(0x1);
+        operator = address(0x2);
+        borrower = address(0x3);
+        guarantor1 = address(0x4);
+        guarantor2 = address(0x5);
 
-    manager = new SaccoLoanManager(admin, ops);
+        address[] memory localOps = new address[](1);
+        localOps[0] = operator;
+        manager = new SaccoLoanManager(admin, localOps);
 
-    vm.startPrank(admin);
-    manager.grantRole(manager.OPERATOR_ROLE(), operator);
-    vm.stopPrank();
+        vm.startPrank(admin);
+        manager.grantRole(manager.OPERATOR_ROLE(), operator);
+        vm.stopPrank();
 
-    // Register members and verify KYC
-    vm.prank(borrower);
-    manager.registerMember();
-    manager.updateKyc(borrower, SaccoLoanManager.KycStatus.Verified);
+        _registerAndVerify(borrower);
+        _registerAndVerify(guarantor1);
+        _registerAndVerify(guarantor2);
 
-    vm.prank(guarantor1);
-    manager.registerMember();
-    manager.updateKyc(guarantor1, SaccoLoanManager.KycStatus.Verified);
+        garr = new address[](2);
+        garr[0] = guarantor1;
+        garr[1] = guarantor2;
+    }
 
-    vm.prank(guarantor2);
-    manager.registerMember();
-    manager.updateKyc(guarantor2, SaccoLoanManager.KycStatus.Verified);
+    function _registerAndVerify(address user) internal {
+        vm.prank(user);
+        manager.registerMember();
+        vm.prank(operator);
+        manager.updateKyc(user, SaccoLoanManager.KycStatus.Verified);
+    }
 
-    garr = new address[](2);
+    // --- ✅ BASIC LOAN TESTS ---
 
-    garr[0] = guarantor1;
-    garr[1] = guarantor2;
-}
     function testNativeLoanRequest() public {
         vm.startPrank(borrower);
         uint256 loanId = manager.requestLoan(
@@ -58,54 +57,130 @@ function setUp() public {
             SaccoLoanManager.PaymentType.Native,
             address(0),
             2,
-            1 days,
+            7 days,
             garr
         );
         vm.stopPrank();
 
         (
             address borrowerAddr,
-            SaccoLoanManager.PaymentType paymentType,
-            , // tokenAddress unused
-            , // guarantorCount unused
+            SaccoLoanManager.PaymentType payType,
+            ,
             uint256 amount,
-            , // interestRate unused
-            , // duration unused
-            , // dueDate unused
-            bool isRepaid
+            ,
+            ,
+            ,
+            ,
+            SaccoLoanManager.LoanStatus status
         ) = manager.getLoanDetails(loanId);
 
         assertEq(borrowerAddr, borrower, "Borrower mismatch");
-        assertEq(amount, 1 ether, "Loan amount mismatch");
-        assertEq(uint256(paymentType), uint256(SaccoLoanManager.PaymentType.Native), "Payment type mismatch");
-        assertEq(isRepaid, false, "Loan should not be repaid yet");
+        assertEq(amount, 1 ether, "Incorrect loan amount");
+        assertEq(uint256(payType), uint256(SaccoLoanManager.PaymentType.Native), "PaymentType mismatch");
+        assertLoanStatusEq(status, SaccoLoanManager.LoanStatus.Requested);
     }
 
-    function testFiatLoanRequest() public {
+    // --- ✅ OPERATOR APPROVAL TEST ---
+
+    function testLoanApprovalFlow() public {
+        uint256 loanId = _requestLoan();
+
+        vm.startPrank(operator);
+        manager.approveLoan(loanId);
+        vm.stopPrank();
+
+        (, , , , , , , , SaccoLoanManager.LoanStatus status) = manager.getLoanDetails(loanId);
+        assertLoanStatusEq(status, SaccoLoanManager.LoanStatus.Approved);
+    }
+
+    // --- ✅ REPAYMENT TEST ---
+
+    function testLoanRepayment() public {
+        uint256 loanId = _requestLoan();
+
+        vm.startPrank(operator);
+        manager.approveLoan(loanId);
+        vm.stopPrank();
+
+        vm.startPrank(borrower);
+        manager.repayLoan{value: 1 ether}(loanId, 1 ether);
+        vm.stopPrank();
+
+        (, , , , , , , , SaccoLoanManager.LoanStatus status) = manager.getLoanDetails(loanId);
+        assertLoanStatusEq(status, SaccoLoanManager.LoanStatus.Repaid);
+    }
+
+    // --- ⚠️ EDGE CASE TESTS ---
+
+    function testFailsForUnverifiedKYC() public {
+        address newUser = address(0x6);
+        vm.prank(newUser);
+        manager.registerMember();
+
+        address[] memory dummyGuarantors = new address[](2);
+        dummyGuarantors[0] = guarantor1;
+        dummyGuarantors[1] = guarantor2;
+
+        vm.startPrank(newUser);
+        vm.expectRevert("KYC not verified");
+        manager.requestLoan(1 ether, SaccoLoanManager.PaymentType.Native, address(0), 2, 1 days, dummyGuarantors);
+        vm.stopPrank();
+    }
+
+function testFailsWithInsufficientGuarantors() public {
+    address[] memory oneGuarantor = new address[](1);
+    oneGuarantor[0] = guarantor1;
+
+    vm.startPrank(borrower);
+    vm.expectRevert("Insufficient guarantors");
+    manager.requestLoan(1 ether, SaccoLoanManager.PaymentType.Native, address(0), 2, 1 days, oneGuarantor);
+    vm.stopPrank();
+}
+
+function testFailsWithDuplicateGuarantors() public {
+    address[] memory dup = new address[](2);
+    dup[0] = guarantor1;
+    dup[1] = guarantor1;
+
+    vm.startPrank(borrower);
+    vm.expectRevert("Duplicate guarantor");
+    manager.requestLoan(1 ether, SaccoLoanManager.PaymentType.Native, address(0), 2, 1 days, dup);
+    vm.stopPrank();
+}
+
+    function testFailsWhenGuarantorIsBorrower() public {
+         address[] memory invalid = new address[](2);
+        invalid[0] = borrower;
+        invalid[1] = guarantor1;
+
+        vm.startPrank(borrower);
+        vm.expectRevert("Guarantor cannot be borrower");
+        manager.requestLoan(1 ether, SaccoLoanManager.PaymentType.Native, address(0), 2, 1 days, invalid);
+        vm.stopPrank();
+    }
+
+    // --- ⚙️ HELPERS ---
+
+    function _requestLoan() internal returns (uint256) {
         vm.startPrank(borrower);
         uint256 loanId = manager.requestLoan(
-            1000,
-            SaccoLoanManager.PaymentType.Fiat,
+            1 ether,
+            SaccoLoanManager.PaymentType.Native,
             address(0),
             2,
-            1 days,
+            7 days,
             garr
         );
         vm.stopPrank();
+        return loanId;
+    }
 
-        (
-            , // borrower unused
-            , // paymentType unused
-            , // tokenAddress unused
-            , // guarantorCount unused
-            uint256 amount,
-            , // interestRate unused
-            , // duration unused
-            , // dueDate unused
-            bool isRepaid
-        ) = manager.getLoanDetails(loanId);
+    // --- 🧩 ENUM ASSERTION HELPER ---
 
-        assertEq(amount, 1000, "Loan amount mismatch");
-        assertEq(isRepaid, false, "Loan should not be repaid yet");
+    function assertLoanStatusEq(
+        SaccoLoanManager.LoanStatus a,
+        SaccoLoanManager.LoanStatus b
+    ) pure internal {
+        assertEq(uint256(a), uint256(b), "Loan status mismatch");
     }
 }
