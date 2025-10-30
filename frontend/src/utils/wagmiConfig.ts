@@ -1,10 +1,13 @@
-// src/utils/wagmiConfig.ts
 import { createConfig, http } from 'wagmi'
-import { mainnet } from 'wagmi/chains'
+import { sepolia } from 'wagmi/chains'
+import { injected } from 'wagmi/connectors'
+
+const INFURA_ID = import.meta.env.VITE_INFURA_ID
 
 export const wagmiConfig = createConfig({
-  chains: [mainnet],
+  chains: [sepolia],
+  connectors: [injected()],
   transports: {
-    [mainnet.id]: http('https://mainnet.infura.io/v3/YOUR_INFURA_ID'),
+    [sepolia.id]: http(`https://rpc.metamask.io/v1/${INFURA_ID}`),
   },
 })

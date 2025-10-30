@@ -1,4 +1,3 @@
-// src/components/Forms/hooks/useLoanRequest.ts
 import { useState } from 'react'
 import {
   useAccount,
@@ -9,14 +8,38 @@ import { parseEther } from 'viem'
 import { readContract } from '@wagmi/core' // ✅ readContract import
 
 // Smart contract details
-import { saccoAbi, saccoAddress, nftValidatorAbi, nftValidatorAddress } from '../../../utils/contracts'
+import {
+  saccoAbi,
+  saccoAddress,
+  nftValidatorAbi,
+  nftValidatorAddress,
+} from '../../../utils/contracts'
 
 // Local helpers
-import ConnectWallet from './components/ConnectWallet.js'
-import LoanRequestForm from './components/Forms/LoanRequestForm.js'
 import { wagmiConfig } from '../../../utils/wagmiConfig'
-
 import { mainnet } from 'viem/chains'
+
+// ✅ Add this helper function at the top (before export)
+function getRepaymentInterval(loanType: string, category: string): number {
+  if (loanType === 'short') {
+    return category === 'emergency' ? 30 : 60 // short-term loans
+  } else {
+    return category === 'business' ? 180 : 365 // long-term loans
+  }
+}
+
+// (Optional) You may also later define validateAddress() and validateAmount()
+// below if needed to avoid further ReferenceErrors
+// ✅ Helper function to validate Ethereum address
+function validateAddress(address: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(address.trim())
+}
+
+// ✅ Helper function to validate loan amount
+function validateAmount(amount: string): boolean {
+  const value = parseFloat(amount)
+  return !isNaN(value) && value > 0
+}
 
 export function useLoanRequest() {
   const { address } = useAccount()
@@ -52,12 +75,12 @@ export function useLoanRequest() {
 
     try {
       setNftChecking(true)
-const result = await readContract(wagmiConfig, {
-  address: nftValidatorAddress as `0x${string}`,
-  abi: nftValidatorAbi,
-  functionName: 'isOwner',
-  args: [address as `0x${string}`, nftContract as `0x${string}`, BigInt(tokenId)],
-})
+      const result = await readContract(wagmiConfig, {
+        address: nftValidatorAddress as `0x${string}`,
+        abi: nftValidatorAbi,
+        functionName: 'isOwner',
+        args: [address as `0x${string}`, nftContract as `0x${string}`, BigInt(tokenId)],
+      })
       setNftValid(Boolean(result))
     } catch (error) {
       console.error('NFT validation failed:', error)
