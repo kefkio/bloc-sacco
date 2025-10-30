@@ -1,12 +1,10 @@
+// src/utils/wagmiConfig.ts
 import { createConfig, http } from 'wagmi'
-import { sepolia } from 'wagmi/chains'
-import { injected } from 'wagmi/connectors'
+import { mainnet } from 'wagmi/chains'
 
-export const config = createConfig({
-  chains: [sepolia],
-  connectors: [injected()],
+export const wagmiConfig = createConfig({
+  chains: [mainnet],
   transports: {
-    [sepolia.id]: http(),
+    [mainnet.id]: http('https://mainnet.infura.io/v3/YOUR_INFURA_ID'),
   },
-  ssr: false,
 })

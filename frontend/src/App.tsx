@@ -1,5 +1,5 @@
 import ConnectWallet from './components/ConnectWallet'
-import LoanRequestForm from './components/LoanRequestForm'
+import LoanRequestForm from './components/Forms/LoanRequestForm'
 import { useAccount } from 'wagmi'
 
 function App() {
